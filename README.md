@@ -1,3 +1,103 @@
+# Telco Churn Prediction SaaS
+
+Professional, end-to-end churn prediction project: training, serving, dashboarding, monitoring, A/B testing and retraining utilities.
+
+## Quick summary
+
+- Trains models to predict customer churn using a repeatable pipeline: feature engineering → preprocessing → feature selection → model training & evaluation.
+- Serves real-time predictions and what‑if analysis with a FastAPI service (`/predict`, `/predict/batch`, `/whatif`).
+- Interactive Streamlit dashboard for overview, customer analysis, what‑if simulation, model performance and drift monitoring.
+- CLI scripts for batch prediction, feature analysis (SHAP), drift monitoring, A/B testing and retraining.
+
+## Quick start (Windows, PowerShell)
+
+1. Activate the project virtual environment:
+
+```powershell
+& .\.venv\Scripts\Activate.ps1
+```
+
+2. Install dependencies (if not already):
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+3. Run tests:
+
+```powershell
+python -m pytest tests/ -v
+```
+
+4. Start the API (FastAPI + Uvicorn):
+
+```powershell
+python -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+5. Start the dashboard (Streamlit):
+
+```powershell
+python -m streamlit run dashboard\app.py --server.port 8501 --server.address 127.0.0.1
+```
+
+6. Run monitoring, feature analysis, or other utilities:
+
+```powershell
+# Drift monitoring
+python scripts/monitor.py --data data/raw/telco_churn.csv --output reports/monitoring
+
+# Feature analysis (SHAP + recommendations)
+python scripts/feature_analysis.py
+
+# Batch scoring
+python scripts/predict.py --input data/raw/batch_input.csv --output reports/predictions.csv
+
+# A/B test (example)
+python scripts/ab_test.py --champion models/best_model.joblib --challenger models/challenger.joblib --data data/raw/telco_churn.csv
+
+# Retrain pipeline
+python scripts/retrain.py --data data/raw/telco_churn.csv --auto-promote
+```
+
+## Important files & folders
+
+- `api/` — FastAPI service and pydantic schemas.
+- `dashboard/` — Streamlit dashboard app (`app.py`).
+- `scripts/` — CLI utilities: `train.py`, `predict.py`, `monitor.py`, `feature_analysis.py`, `ab_test.py`, `retrain.py`.
+- `src/` — Core modules: feature engineering (`src/features/engineer.py`), selection (`src/features/selector.py`), preprocessing (`src/data/preprocessor.py`), monitoring (`src/monitoring/drift.py`), and utilities (`src/utils/helpers.py`).
+- `models/` — Persisted model artifacts: `best_model.joblib`, `preprocessor.joblib`, `selected_features.joblib`, `optimal_threshold.joblib`, and `registry_index.json`.
+- `reports/` — Generated reports and visualizations (training results, monitoring, SHAP).
+- `config/config.yaml` — Project configuration: paths, features, hyperparameters and thresholds.
+
+## API endpoints (examples)
+
+- `GET /health` — health check.
+- `POST /predict` — single customer prediction (JSON body matching `api/schemas.py::CustomerFeatures`).
+- `POST /predict/batch` — batch predictions (list of customers).
+- `POST /whatif` — what-if simulation (baseline customer + changes).
+
+## Notes & recommendations
+
+- Always run commands from the activated `.venv` to ensure correct dependencies.
+- The `selected_features` saved from training may use generic `feature_0..` names — scripts include robust fallbacks to avoid feature-name mismatches between preprocessor output and saved selections.
+- Use the `reports/feature_analysis` output to guide new feature engineering; integrate high-impact suggestions into `src/features/engineer.py`.
+
+## Development workflow
+
+1. Edit code & tests.
+2. Run `pytest` and fix failing tests.
+3. Retrain with `scripts/train.py` if data or features change.
+4. Promote model (manual or via `--auto-promote` in `scripts/retrain.py`).
+
+## License & contact
+
+Add your license and maintainer contact information here.
+
+---
+
+Generated/updated on: 2026-02-17
+
 # 📊 Churn Prediction SaaS Project
 
 > **Advanced Telco Customer Churn Prediction Platform** — A production-grade, end-to-end machine learning system that predicts customer churn, explains predictions, recommends retention actions, and monitors model performance in real time.
