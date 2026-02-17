@@ -98,13 +98,13 @@ Add your license and maintainer contact information here.
 
 Generated/updated on: 2026-02-17
 
-# 📊 Churn Prediction SaaS Project
+#  Churn Prediction SaaS Project
 
 > **Advanced Telco Customer Churn Prediction Platform** — A production-grade, end-to-end machine learning system that predicts customer churn, explains predictions, recommends retention actions, and monitors model performance in real time.
 
 ---
 
-## 🏗️ Architecture Overview
+##  Architecture Overview
 
 ```
 ChurnPredictionSaasProject/
@@ -152,9 +152,9 @@ ChurnPredictionSaasProject/
 
 ---
 
-## 🚀 Key Features
+##  Key Features
 
-### 🧠 Advanced Machine Learning
+###  Advanced Machine Learning
 
 - **4 algorithms**: Logistic Regression, Random Forest, XGBoost, LightGBM
 - **Probability calibration** via Isotonic Regression for reliable risk scores
@@ -177,28 +177,28 @@ ChurnPredictionSaasProject/
 - **Calibration plots** — verify that a "60% risk" score is truly 60%
 - Side-by-side model comparison dashboard
 
-### 🔍 Explainability (SHAP)
+###  Explainability (SHAP)
 
 - **Global importance** — which features matter most across all customers
 - **Local explanations** — why THIS customer is predicted to churn
 - **What-if analysis** — "what happens if we upgrade their contract?"
 - SHAP summary and waterfall plots (auto-saved)
 
-### ⚠️ Drift Monitoring
+###  Drift Monitoring
 
 - **Population Stability Index (PSI)** for every feature
 - Prediction distribution drift detection
 - Performance decay monitoring over time
 - Configurable warning and alert thresholds
 
-### 🎯 Next-Best-Action Engine
+###  Next-Best-Action Engine
 
 - **15-action catalog** across 5 categories (pricing, contract, service, payment, engagement)
 - **ROI-based ranking** — each action estimates cost, success rate, and expected value
 - **Personalized retention plans** with priority and implementation timeline
 - **Customer prioritization** by expected revenue loss
 
-### 🌐 REST API (FastAPI)
+###  REST API (FastAPI)
 
 - `POST /predict` — single customer prediction with risk level
 - `POST /predict/batch` — score hundreds of customers at once
@@ -206,7 +206,7 @@ ChurnPredictionSaasProject/
 - `GET /health` — model status and version info
 - CORS-enabled, production-ready with async support
 
-### 📱 Interactive Dashboard (Streamlit)
+###  Interactive Dashboard (Streamlit)
 
 - **Overview** — KPIs, risk distribution pie chart, monthly trend
 - **Customer Analysis** — form-based individual prediction with gauge chart
@@ -217,9 +217,9 @@ ChurnPredictionSaasProject/
 
 ---
 
-## ⚡ Quick Start
+##  Quick Start
 
-### 1. Clone the Repository
+###  Clone the Repository
 
 ```bash
 git clone https://github.com/wasam0110/Churn-Saas_project.git
@@ -334,7 +334,7 @@ Check model status, version, and uptime.
 
 ---
 
-## 📋 Configuration
+##  Configuration
 
 All settings are centralized in `config/config.yaml`:
 
@@ -352,7 +352,7 @@ All settings are centralized in `config/config.yaml`:
 
 ---
 
-## 🧪 Testing
+##  Testing
 
 ```bash
 # Run all tests with verbose output
@@ -369,7 +369,7 @@ pytest tests/ --cov=src --cov-report=html
 
 ---
 
-## 📦 Tech Stack
+##  Tech Stack
 
 | Category           | Technologies                                      |
 | ------------------ | ------------------------------------------------- |
@@ -384,7 +384,7 @@ pytest tests/ --cov=src --cov-report=html
 
 ---
 
-## 📈 What Makes This Project Stand Out
+##  What Makes This Project Stand Out
 
 1. **Business-Value Optimization** — Doesn't just maximize accuracy; optimizes the threshold for maximum expected profit using configurable retention costs and customer lifetime value.
 
@@ -402,13 +402,13 @@ pytest tests/ --cov=src --cov-report=html
 
 ---
 
-## 📄 License
+##  License
 
 This project is for educational and portfolio purposes.
 
 ---
 
-## 👤 Author
+##  Author
 
 Built with ❤️ as an advanced data science portfolio project.
 
