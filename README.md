@@ -24,5 +24,3 @@ This repository contains a churn prediction SaaS project: data preprocessing, mo
 Repository remote: https://github.com/wasam0110/Churn-Saas_project.git
 
 ---
-
-If you want, I can add a more detailed README based on the project files.
