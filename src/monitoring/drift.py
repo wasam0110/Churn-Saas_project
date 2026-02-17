@@ -8,8 +8,7 @@ import numpy as np                                 # NumPy for numerical operati
 import pandas as pd                                # Pandas for DataFrames
 from scipy import stats                            # SciPy for statistical tests
 import matplotlib.pyplot as plt                    # Matplotlib for plotting
-import matplotlib                                  # Backend configuration
-matplotlib.use("Agg")                              # Non-interactive backend
+plt.switch_backend('Agg')                          # Use non-interactive backend for server environments
 from loguru import logger                          # Structured logging
 from typing import Dict, Any, List, Optional, Tuple  # Type hints
 from pathlib import Path                           # Object-oriented paths

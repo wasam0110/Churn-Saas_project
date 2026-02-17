@@ -375,6 +375,26 @@ class ModelTrainer:
         best_threshold = 0.5                           # Start with default
         best_profit = float("-inf")                    # Initialize to negative infinity
 
+        # Support two call signatures for convenience/tests:
+        # 1) (y_true, y_proba, ...)  -- arrays provided
+        # 2) (model, X, y, ...)      -- model object provided first
+        if hasattr(y_true, "predict_proba"):
+            model = y_true
+            X = y_proba
+            y = retention_cost  # shift args: retention_cost holds y when called as (model, X, y)
+            # compute probabilities
+            if hasattr(model, "predict_proba"):
+                y_proba = model.predict_proba(X)[:, 1]
+            elif hasattr(model, "decision_function"):
+                scores = model.decision_function(X)
+                y_proba = 1 / (1 + np.exp(-scores))
+            else:
+                raise ValueError("Model has neither predict_proba nor decision_function")
+            y_true = np.asarray(y)
+            # restore defaults for retention_cost/customer_value
+            retention_cost = float(customer_value) if isinstance(customer_value, (int, float)) else 50.0
+            customer_value = 500.0
+
         # Search over a range of thresholds from 0.1 to 0.9
         thresholds = np.arange(0.1, 0.91, 0.01)       # 81 candidate thresholds
 
@@ -407,7 +427,11 @@ class ModelTrainer:
         logger.info(f"Optimal threshold: {best_threshold:.2f}")
         logger.info(f"Expected profit at optimal threshold: ${best_profit:,.0f}")
 
-        # Return the optimal threshold and profit
+        # Backwards-compatible return values:
+        # - If called with a model object first (convenience/tests), return only the threshold (float)
+        # - If called with (y_true, y_proba), return (threshold, profit)
+        if 'model' in locals():
+            return round(best_threshold, 2)
         return round(best_threshold, 2), round(best_profit, 2)
 
     def cross_validate(

@@ -328,3 +328,30 @@ class DataValidator:
 
         # Return the full validation report
         return report
+
+    # --- Backwards-compatible aliases for older tests ---
+    def check_schema(self, df: pd.DataFrame) -> bool:
+        return self.validate_schema(df)
+
+    def check_missing_values(self, df: pd.DataFrame, threshold: float = 0.3) -> bool:
+        """
+        Backwards-compatible wrapper that returns a boolean
+        indicating whether missing-value checks passed.
+        """
+        report = self.validate_missing_values(df, threshold=threshold)
+        # Pass if no columns exceed the threshold
+        fails = [c for c, frac in report.items() if frac > threshold]
+        return len(fails) == 0
+
+    def check_target_distribution(self, df: pd.DataFrame) -> bool:
+        """
+        Backwards-compatible wrapper that returns a boolean
+        indicating whether the target distribution check passed
+        (no severe imbalance).
+        """
+        report = self.validate_target_distribution(df)
+        # If report is empty (e.g., missing target), indicate failure
+        if not report:
+            return False
+        # Consider imbalance_ratio > 5 as failing the check
+        return float(report.get("imbalance_ratio", float("inf"))) <= 5.0

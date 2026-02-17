@@ -17,7 +17,6 @@ venv/                      # Virtual environment folder
 env/                       # Alternative venv name
 
 # --- IDE ---
-.vscode/                   # VS Code settings
 .idea/                     # PyCharm settings
 *.swp                      # Vim swap files
 *.swo                      # Vim swap files
@@ -38,6 +37,9 @@ mlartifacts/               # MLflow artifact storage
 # --- Logs ---
 logs/                      # Application log files
 *.log                      # Individual log files
+
+# --- Reports ---
+reports/                   # Generated reports and visualizations
 
 # --- OS ---
 .DS_Store                  # macOS folder metadata

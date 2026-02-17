@@ -138,6 +138,10 @@ class DataPreprocessor:
         # Return the list of feature names
         return feature_names
 
+    def get_feature_names(self) -> List[str]:
+        """Public alias for _get_feature_names for external use."""
+        return self._get_feature_names()
+
     def split_data(
         self,
         df: pd.DataFrame,
@@ -162,6 +166,15 @@ class DataPreprocessor:
         X = df.drop(columns=[self.target])         # All columns except target
         y = df[self.target]                         # Only the target column
 
+        # Drop TotalCharges to avoid multicollinearity with tenure
+        # (TotalCharges is highly correlated with tenure × MonthlyCharges)
+        if 'TotalCharges' in X.columns:
+            X = X.drop(columns=['TotalCharges'])
+            # Also remove from numerical_cols list for the preprocessor
+            if 'TotalCharges' in self.numerical_cols:
+                self.numerical_cols = [c for c in self.numerical_cols if c != 'TotalCharges']
+            logger.info("Dropped TotalCharges to avoid multicollinearity with tenure")
+
         # Perform stratified train/test split
         # stratify=y ensures both sets have the same churn rate proportion
         X_train, X_test, y_train, y_test = train_test_split(
@@ -183,7 +196,8 @@ class DataPreprocessor:
     def fit_transform(
         self,
         X_train: pd.DataFrame,
-    ) -> np.ndarray:
+        y: Optional[pd.Series] = None,
+    ) -> Tuple[np.ndarray, ...]:
         """
         Fit the preprocessor on training data and transform it.
 
@@ -200,25 +214,57 @@ class DataPreprocessor:
         np.ndarray
             Transformed training features as a numpy array.
         """
-        # Build the preprocessing pipeline
+        # If a target `y` is provided, assume caller expects a full split
+        if y is not None:
+            # Drop TotalCharges to avoid multicollinearity with tenure
+            if 'TotalCharges' in X_train.columns:
+                X_train = X_train.drop(columns=['TotalCharges'])
+                # Also remove from numerical_cols list for the preprocessor
+                if 'TotalCharges' in self.numerical_cols:
+                    self.numerical_cols = [c for c in self.numerical_cols if c != 'TotalCharges']
+                logger.info("Dropped TotalCharges to avoid multicollinearity with tenure")
+            
+            # Perform stratified train/test split
+            X_tr, X_te, y_tr, y_te = train_test_split(
+                X_train,
+                y,
+                test_size=self.test_size,
+                random_state=self.random_state,
+                stratify=y,
+            )
+            # Build and fit the preprocessor on the training portion
+            self.preprocessor = self._build_preprocessor()
+            X_tr_proc = self.preprocessor.fit_transform(X_tr)
+            # Mark fitted and store names
+            self.is_fitted = True
+            self.feature_names = self._get_feature_names()
+            # Transform the test set
+            X_te_proc = self.preprocessor.transform(X_te)
+            # Log and return four arrays (train/test split)
+            logger.info("Preprocessor fitted and data split returned")
+            return X_tr_proc, X_te_proc, y_tr, y_te
+
+        # Drop TotalCharges to avoid multicollinearity with tenure
+        if 'TotalCharges' in X_train.columns:
+            X_train = X_train.drop(columns=['TotalCharges'])
+            # Also remove from numerical_cols list for the preprocessor
+            if 'TotalCharges' in self.numerical_cols:
+                self.numerical_cols = [c for c in self.numerical_cols if c != 'TotalCharges']
+            logger.info("Dropped TotalCharges to avoid multicollinearity with tenure")
+
+        # Build the preprocessing pipeline for single-dataset fit
         self.preprocessor = self._build_preprocessor()
-
         # Fit the preprocessor on training data AND transform it
-        # fit_transform is more efficient than separate fit() + transform()
         X_train_processed = self.preprocessor.fit_transform(X_train)
-
         # Mark the preprocessor as fitted
         self.is_fitted = True
-
         # Extract and store feature names for later interpretability
         self.feature_names = self._get_feature_names()
-
         # Log the transformation results
         logger.info(f"Preprocessor fitted on training data")
         logger.info(f"  Input features: {X_train.shape[1]}")
         logger.info(f"  Output features: {X_train_processed.shape[1]}")
         logger.info(f"  Feature names: {self.feature_names[:5]}... (showing first 5)")
-
         # Return the transformed numpy array
         return X_train_processed
 

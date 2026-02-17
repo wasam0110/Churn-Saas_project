@@ -32,6 +32,7 @@ from api.schemas import (                          # Import all request/response
     RiskLevel,                                     # Risk level enum
 )
 from src.utils.helpers import load_config, load_model  # Config and model loading utilities
+from src.features.engineer import FeatureEngineer  # Feature engineering module
 
 
 # ============================================================
@@ -42,6 +43,8 @@ app_state = {
     "model": None,                                 # The loaded ML model
     "config": None,                                # The loaded config
     "preprocessor": None,                          # The fitted preprocessor
+    "engineer": None,                              # The feature engineer
+    "selected_features": None,                     # Selected feature names after selection
     "feature_names": None,                         # Expected feature names
     "threshold": 0.5,                              # Decision threshold
 }
@@ -72,11 +75,21 @@ async def lifespan(app: FastAPI):
         else:
             logger.warning(f"Model file not found at: {model_path}. API will start but predictions disabled.")
 
+        # Initialize the feature engineer
+        app_state["engineer"] = FeatureEngineer(config)
+        logger.info("Feature engineer initialized")
+
         # Load the preprocessor if saved
         preprocessor_path = Path("models/preprocessor.joblib")
         if preprocessor_path.exists():
             app_state["preprocessor"] = joblib.load(preprocessor_path)
             logger.info("Preprocessor loaded")
+
+        # Load selected feature names if saved
+        selected_features_path = Path("models/selected_features.joblib")
+        if selected_features_path.exists():
+            app_state["selected_features"] = joblib.load(selected_features_path)
+            logger.info(f"Selected features loaded: {len(app_state['selected_features'])} features")
 
         # Load feature names if saved
         feature_names_path = Path("models/feature_names.joblib")
@@ -154,6 +167,54 @@ def customer_to_dataframe(customer: CustomerFeatures) -> pd.DataFrame:
     return df
 
 
+def prepare_features(df: pd.DataFrame) -> np.ndarray:
+    """
+    Run the full feature pipeline: engineer -> preprocess -> select.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Raw customer DataFrame (one or more rows).
+
+    Returns
+    -------
+    np.ndarray
+        Model-ready feature array.
+    """
+    # Step 1: Feature engineering (add derived features)
+    if app_state["engineer"] is not None:
+        df = app_state["engineer"].engineer_all_features(df)
+
+    # Step 2: Preprocessing (encode, scale, impute)
+    if app_state["preprocessor"] is not None:
+        features = app_state["preprocessor"].transform(df)
+    else:
+        features = df.values
+
+    # Step 3: Feature selection (select only important features)
+    if app_state["selected_features"] is not None:
+        # Build feature names that match how training saved them
+        # Training uses _get_feature_names(), or falls back to generic names
+        try:
+            feature_names = app_state["preprocessor"]._get_feature_names()
+        except Exception:
+            feature_names = [f"feature_{i}" for i in range(features.shape[1])]
+
+        # Check if any selected features match; if not, use generic names
+        overlap = [f for f in app_state["selected_features"] if f in feature_names]
+        if len(overlap) == 0:
+            feature_names = [f"feature_{i}" for i in range(features.shape[1])]
+
+        features_df = pd.DataFrame(features, columns=feature_names)
+        available = [f for f in app_state["selected_features"] if f in features_df.columns]
+        if available:
+            features = features_df[available].values
+        else:
+            logger.warning(f"No matching features found. Selected: {app_state['selected_features'][:5]}, Available: {feature_names[:5]}")
+
+    return features
+
+
 def classify_risk(probability: float) -> RiskLevel:
     """
     Classify a churn probability into a risk level.
@@ -223,13 +284,8 @@ async def predict_churn(customer: CustomerFeatures):
         # Convert customer data to DataFrame
         df = customer_to_dataframe(customer)
 
-        # Apply preprocessing if preprocessor is available
-        if app_state["preprocessor"] is not None:
-            # Transform using the fitted preprocessor
-            features = app_state["preprocessor"].transform(df)
-        else:
-            # Use raw features (model must handle them directly)
-            features = df.values
+        # Run full feature pipeline (engineer -> preprocess -> select)
+        features = prepare_features(df)
 
         # Get churn probability from the model
         # predict_proba returns [[P(not churn), P(churn)]]
@@ -284,11 +340,8 @@ async def predict_batch(request: BatchPredictionRequest):
         # Concatenate into a single DataFrame
         batch_df = pd.concat(dfs, ignore_index=True)
 
-        # Apply preprocessing
-        if app_state["preprocessor"] is not None:
-            features = app_state["preprocessor"].transform(batch_df)
-        else:
-            features = batch_df.values
+        # Run full feature pipeline (engineer -> preprocess -> select)
+        features = prepare_features(batch_df)
 
         # Get predictions for all customers at once
         probabilities = app_state["model"].predict_proba(features)
@@ -348,24 +401,18 @@ async def what_if_analysis(request: WhatIfRequest):
         # Get original prediction
         original_df = customer_to_dataframe(request.customer)
 
-        # Apply preprocessing to original data
-        if app_state["preprocessor"] is not None:
-            original_features = app_state["preprocessor"].transform(original_df)
-        else:
-            original_features = original_df.values
+        # Run full feature pipeline on original data
+        original_features = prepare_features(original_df)
         original_prob = float(app_state["model"].predict_proba(original_features)[0][1])
 
-        # Apply proposed changes
-        modified_df = original_df.copy()
+        # Apply proposed changes to a copy of the raw data
+        modified_df = customer_to_dataframe(request.customer)
         for feature, new_value in request.changes.items():
             if feature in modified_df.columns:
                 modified_df[feature] = new_value
 
-        # Get new prediction
-        if app_state["preprocessor"] is not None:
-            modified_features = app_state["preprocessor"].transform(modified_df)
-        else:
-            modified_features = modified_df.values
+        # Run full feature pipeline on modified data
+        modified_features = prepare_features(modified_df)
         new_prob = float(app_state["model"].predict_proba(modified_features)[0][1])
 
         # Calculate change

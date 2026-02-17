@@ -11,6 +11,7 @@ from datetime import datetime                      # Timestamps for model versio
 from pathlib import Path                           # Object-oriented file paths
 from loguru import logger                          # Structured logging
 from typing import Dict, Any, Optional, List       # Type hints
+import pandas as pd                               # DataFrame utilities for registry listings
 
 
 class ModelRegistry:
@@ -32,6 +33,11 @@ class ModelRegistry:
         registry_dir : str
             Base directory for storing models and metadata.
         """
+        # Allow passing the full config dict (backwards compatibility):
+        # If a dict is passed, extract model_registry.dir
+        if isinstance(registry_dir, dict):
+            registry_dir = registry_dir.get("model_registry", {}).get("dir", "models")
+
         # Set the registry directory path
         self.registry_dir = Path(registry_dir)
         # Create the directory if it doesn't exist
@@ -111,10 +117,11 @@ class ModelRegistry:
         model: Any,
         model_name: str,
         metrics: Dict[str, float],
-        hyperparameters: Dict[str, Any],
-        feature_names: List[str],
+        hyperparameters: Optional[Dict[str, Any]] = None,
+        feature_names: Optional[List[str]] = None,
         description: str = "",
-    ) -> str:
+        config: Optional[Dict] = None,
+    ) -> int:
         """
         Register a trained model with its metadata.
 
@@ -126,18 +133,25 @@ class ModelRegistry:
             Name of the algorithm (e.g., 'xgboost').
         metrics : dict
             Performance metrics from evaluation.
-        hyperparameters : dict
-            Hyperparameters used for training.
-        feature_names : list of str
-            Names of input features.
+        hyperparameters : dict, optional
+            Hyperparameters used for training. Defaults to empty dict.
+        feature_names : list of str, optional
+            Names of input features. Defaults to empty list.
         description : str, optional
             Human-readable description of this model version.
+        config : dict, optional
+            Full project config (for backward compatibility).
 
         Returns
         -------
-        str
-            The version ID assigned to this model.
+        int
+            The numeric version number assigned to this model.
         """
+        # Handle defaults for optional parameters
+        if hyperparameters is None:
+            hyperparameters = {}
+        if feature_names is None:
+            feature_names = []
         # Generate a unique version ID
         version_id = self._generate_version_id(model_name)
 
@@ -171,8 +185,14 @@ class ModelRegistry:
         logger.info(f"  Path: {model_path}")
         logger.info(f"  Metrics: {metrics}")
 
-        # Return the version ID
-        return version_id
+        # Extract numeric version for backward compatibility
+        # version_id format: "model_name_v{num}_{timestamp}"
+        import re
+        match = re.search(r'_v(\d+)_', version_id)
+        numeric_version = int(match.group(1)) if match else len(self.index["models"])
+
+        # Return the numeric version
+        return numeric_version
 
     def promote_to_production(self, version_id: str) -> None:
         """

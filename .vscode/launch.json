@@ -1,0 +1,61 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python Debugger: Current File",
+      "type": "python",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal"
+    },
+
+    {
+      "name": "Streamlit: Run Dashboard",
+      "type": "python",
+      "request": "launch",
+      "module": "streamlit",
+      "args": [
+        "run",
+        "dashboard/app.py",
+        "--server.port",
+        "8501",
+        "--server.address",
+        "127.0.0.1"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "justMyCode": true,
+      "preLaunchTask": "Run Streamlit Dashboard"
+    },
+    {
+      "name": "FastAPI: Run Uvicorn",
+      "type": "python",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "api.main:app",
+        "--reload",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "justMyCode": true,
+      "preLaunchTask": "Run FastAPI (Uvicorn)"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Start API + Dashboard",
+      "configurations": ["FastAPI: Run Uvicorn", "Streamlit: Run Dashboard"]
+    }
+  ]
+}

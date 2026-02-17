@@ -8,8 +8,7 @@ import numpy as np                                 # NumPy for numerical operati
 import pandas as pd                                # Pandas for DataFrames
 import shap                                        # SHAP (SHapley Additive exPlanations)
 import matplotlib.pyplot as plt                    # Matplotlib for plotting
-import matplotlib                                  # For backend settings
-matplotlib.use("Agg")                              # Non-interactive backend (no GUI needed)
+plt.switch_backend('Agg')                          # Non-interactive backend for server environments
 from loguru import logger                          # Structured logging
 from typing import Dict, Any, List, Optional       # Type hints
 from pathlib import Path                           # Object-oriented paths

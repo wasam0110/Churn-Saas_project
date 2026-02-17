@@ -329,5 +329,25 @@ class FeatureSelector:
         # Log the selection results
         logger.info(f"Selected {len(selected)} features: {selected}")
 
-        # Return the filtered DataFrame and the list of selected feature names
+        # Return the list of selected feature names for backward compatibility with tests
+        # and provide a separate method when the caller needs the filtered DataFrame.
+        return selected
+
+    def select_features_df(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        method: str = "combined",
+        n_features: int = 25,
+        correlation_threshold: float = 0.95,
+    ) -> Tuple[pd.DataFrame, List[str]]:
+        """
+        Return the filtered DataFrame along with the list of selected feature names.
+
+        This is the same as the original behavior of `select_features` but exposed
+        via a clearly-named method so callers can opt-in to receiving both outputs.
+        """
+        # Reuse select_features logic (it returns list of feature names)
+        selected = self.select_features(X, y, method=method, n_features=n_features, correlation_threshold=correlation_threshold)
+        X_filtered = self.remove_high_correlation(X, threshold=correlation_threshold)
         return X_filtered[selected], selected

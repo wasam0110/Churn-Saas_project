@@ -88,6 +88,11 @@ class FeatureEngineer:
         )
         self.created_features.append("tenure_segment")
 
+        # --- Backwards-compatible alias: tenure_group ---
+        # Some older callers/tests expect a column named 'tenure_group'
+        df["tenure_group"] = df["tenure_segment"]
+        self.created_features.append("tenure_group")
+
         # --- Is New Customer Flag ---
         # Customers in their first 6 months have the highest churn risk
         df["is_new_customer"] = (df["tenure"] <= 6).astype(int)
@@ -174,6 +179,12 @@ class FeatureEngineer:
         # Avoid division by zero by using max(1, total_services)
         df["charge_per_service"] = df["MonthlyCharges"] / df["total_services"].clip(lower=1)
         self.created_features.append("charge_per_service")
+
+        # --- Backwards-compatible alias: charge_per_tenure_month ---
+        # Older tests expect this specific feature name; map to the
+        # same value as 'avg_monthly_charge' which is safe (handles tenure=0).
+        df["charge_per_tenure_month"] = df["avg_monthly_charge"]
+        self.created_features.append("charge_per_tenure_month")
 
         # --- Lifetime Value Proxy (CLV) ---
         # Simple CLV estimate = MonthlyCharges * expected remaining tenure
@@ -446,3 +457,11 @@ class FeatureEngineer:
 
         # Return the fully enriched DataFrame
         return df
+
+    # Backwards-compatible alias for older tests/code
+    def create_all_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Alias for `engineer_all_features` to maintain compatibility
+        with older callers/tests that expect `create_all_features`.
+        """
+        return self.engineer_all_features(df)

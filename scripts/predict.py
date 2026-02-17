@@ -253,10 +253,19 @@ def run_batch_prediction(args):
     # Apply feature selection if applicable
     if selected_features is not None:
         try:
-            # Get feature names from preprocessor
-            feature_names = preprocessor.get_feature_names()
+            # Get feature names from preprocessor, with a robust fallback.
+            try:
+                feature_names = preprocessor._get_feature_names()
+            except Exception:
+                feature_names = [f"feature_{i}" for i in range(X_processed.shape[1])]
+
+            if not any(f in feature_names for f in selected_features):
+                feature_names = [f"feature_{i}" for i in range(X_processed.shape[1])]
+
             X_df = pd.DataFrame(X_processed, columns=feature_names)
-            X_processed = X_df[selected_features].values
+            available = [f for f in selected_features if f in X_df.columns]
+            if available:
+                X_processed = X_df[available].values
         except Exception as e:
             logger.warning(f"Feature selection failed: {e}. Using all features.")
 

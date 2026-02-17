@@ -21,8 +21,7 @@ from sklearn.metrics import (
 )
 from sklearn.calibration import calibration_curve  # Calibration plot data
 import matplotlib.pyplot as plt                    # Matplotlib for plotting
-import matplotlib                                  # For backend setting
-matplotlib.use("Agg")                              # Use non-interactive backend (no GUI)
+plt.switch_backend('Agg')                          # Non-interactive backend for server environments
 import seaborn as sns                              # Statistical data visualization
 from loguru import logger                          # Structured logging
 from typing import Dict, Any, List, Optional, Tuple  # Type hints
@@ -92,6 +91,30 @@ class ModelEvaluator:
         dict
             Dictionary mapping metric names to their values.
         """
+        # Support two call signatures for convenience/tests:
+        # 1) (y_true, y_proba, threshold=float, model_name=str)
+        # 2) (model, X, y, model_name=str) -- when a model object is passed first
+        if hasattr(y_true, "predict_proba"):
+            # Called as (model, X, y, ...)
+            model = y_true
+            X = y_proba
+            y = threshold
+            # Compute probabilities for the positive class
+            if hasattr(model, "predict_proba"):
+                y_proba = model.predict_proba(X)[:, 1]
+            elif hasattr(model, "decision_function"):
+                scores = model.decision_function(X)
+                y_proba = 1 / (1 + np.exp(-scores))
+            else:
+                raise ValueError("Model has neither predict_proba nor decision_function")
+            y_true = np.asarray(y)
+            # Use provided model_name if available
+            model_name = getattr(model, "__class__", model_name)
+
+        # Ensure numpy arrays for downstream operations
+        y_true = np.asarray(y_true)
+        y_proba = np.asarray(y_proba)
+
         # Convert probabilities to binary predictions using the threshold
         y_pred = (y_proba >= threshold).astype(int)
 
@@ -132,6 +155,7 @@ class ModelEvaluator:
         y_true: np.ndarray,
         y_proba: np.ndarray,
         k_percentiles: Optional[List[int]] = None,
+        k: Optional[float] = None,
     ) -> Dict[str, float]:
         """
         Compute lift at various top-k percentiles.
@@ -154,9 +178,35 @@ class ModelEvaluator:
         dict
             Dictionary mapping 'lift_at_{k}%' to lift values.
         """
+        # Support call signature where a model is supplied first: (model, X, y, k=0.1)
+        if hasattr(y_true, "predict_proba"):
+            model = y_true
+            X = y_proba
+            y = k_percentiles
+            # Compute probabilities
+            if hasattr(model, "predict_proba"):
+                y_proba = model.predict_proba(X)[:, 1]
+            elif hasattr(model, "decision_function"):
+                scores = model.decision_function(X)
+                y_proba = 1 / (1 + np.exp(-scores))
+            else:
+                raise ValueError("Model has neither predict_proba nor decision_function")
+            y_true = np.asarray(y)
+
         # Use configured percentiles if none provided
         if k_percentiles is None:
             k_percentiles = self.top_k
+
+        # If a single 'k' argument (fraction or percent) was provided, normalize to list
+        requested_percent = None
+        if k is not None:
+            # convert fractional to percentile if necessary
+            if k <= 1:
+                k_percent = int(k * 100)
+            else:
+                k_percent = int(k)
+            k_percentiles = [k_percent]
+            requested_percent = k_percent
 
         # Overall churn rate (baseline for random selection)
         base_rate = np.mean(y_true)
@@ -187,7 +237,11 @@ class ModelEvaluator:
             # Log the lift results
             logger.info(f"  Top {k}%: Lift={lift:.2f}x, Recall={recall_at_k:.1%}")
 
-        # Return the lift results
+        # If a single k was requested, return the numeric lift for that percentile
+        if requested_percent is not None and len(k_percentiles) == 1:
+            return lift_results.get(f"lift_at_{requested_percent}%", 0)
+
+        # Otherwise return the full dictionary of lifts and recalls
         return lift_results
 
     def compute_expected_profit(

@@ -122,7 +122,7 @@ def run_training_pipeline():
     # Create a FeatureEngineer instance with the config
     engineer = FeatureEngineer(config)
     # Apply all feature engineering transformations
-    df_featured = engineer.create_all_features(df)
+    df_featured = engineer.engineer_all_features(df)
     # Log the number of new features created
     new_features = df_featured.shape[1] - df.shape[1]
     logger.info(f"Created {new_features} new features. Total columns: {df_featured.shape[1]}")
@@ -134,29 +134,31 @@ def run_training_pipeline():
     # Create a DataPreprocessor instance
     preprocessor = DataPreprocessor(config)
 
-    # Get the target column name from config
-    target_col = config.get("data", {}).get("target_column", "Churn")
+    # Get the target column name from config (features.target)
+    target_col = config.get("features", {}).get("target", "Churn")
     # Ensure target is binary (0/1)
     if df_featured[target_col].dtype == object:
         # Convert string labels to binary integers
         df_featured[target_col] = (df_featured[target_col] == "Yes").astype(int)
 
-    # Separate features and target
-    # Drop customerID and the target column from features
+    # Ensure target column exists and is binary (0/1)
     id_col = config.get("data", {}).get("id_column", "customerID")
-    drop_cols = [target_col]                       # Columns to drop from features
-    if id_col in df_featured.columns:
-        drop_cols.append(id_col)                   # Also drop ID column
-    X = df_featured.drop(columns=drop_cols)        # Feature matrix
-    y = df_featured[target_col]                    # Target vector
+    if target_col not in df_featured.columns:
+        raise KeyError(f"Target column '{target_col}' not found in data")
+    if df_featured[target_col].dtype == object:
+        df_featured[target_col] = (df_featured[target_col] == "Yes").astype(int)
 
     # Log class distribution
-    churn_rate = y.mean()
+    churn_rate = df_featured[target_col].mean()
     logger.info(f"Target distribution: {churn_rate:.1%} churn, {1-churn_rate:.1%} no churn")
 
-    # Fit the preprocessor and transform the training data
-    X_train, X_test, y_train, y_test = preprocessor.fit_transform(X, y)
-    logger.info(f"Train set: {X_train.shape[0]} samples, Test set: {X_test.shape[0]} samples")
+    # Split into train/test using the preprocessor helper (stratified)
+    X_train_df, X_test_df, y_train, y_test = preprocessor.split_data(df_featured)
+    logger.info(f"Train set: {len(X_train_df)} samples, Test set: {len(X_test_df)} samples")
+
+    # Fit preprocessor on training features and transform both train and test
+    X_train = preprocessor.fit_transform(X_train_df)
+    X_test = preprocessor.transform(X_test_df)
     logger.info(f"Features after preprocessing: {X_train.shape[1]}")
 
     # Save the fitted preprocessor for later use
@@ -172,7 +174,7 @@ def run_training_pipeline():
     # Get feature names from the preprocessor
     try:
         # Try to get feature names from the preprocessor
-        feature_names = preprocessor.get_feature_names()
+        feature_names = preprocessor._get_feature_names()
     except Exception:
         # Fall back to generic names if not available
         feature_names = [f"feature_{i}" for i in range(X_train.shape[1])]
@@ -181,12 +183,14 @@ def run_training_pipeline():
     X_train_df = pd.DataFrame(X_train, columns=feature_names)
     X_test_df = pd.DataFrame(X_test, columns=feature_names)
 
-    # Select the most important features
+    # Select the most important features (returns list)
     selected_features = selector.select_features(X_train_df, y_train)
     logger.info(f"Selected {len(selected_features)} features out of {len(feature_names)}")
 
-    # Filter to selected features only
-    X_train_selected = X_train_df[selected_features].values
+    # For training we need the filtered DataFrame; use the helper to get both
+    X_train_filtered_df, _ = selector.select_features_df(X_train_df, y_train)
+    # Filter to selected features for both train and test
+    X_train_selected = X_train_filtered_df.values
     X_test_selected = X_test_df[selected_features].values
 
     # Save selected feature names
@@ -209,12 +213,12 @@ def run_training_pipeline():
     calibrated_models = {}                         # Dictionary for calibrated models
     for name, model in trained_models.items():
         try:
-            # Calibrate the model using isotonic regression
-            cal_model = trainer.calibrate_model(model, X_train_selected, y_train, method="isotonic")
+            # Calibrate the model using the configured method (trainer uses model name)
+            cal_model = trainer.calibrate_model(name, X_train_selected, y_train)
             calibrated_models[name] = cal_model
             logger.info(f"  ✅ {name}: calibrated successfully")
         except Exception as e:
-            # If calibration fails, use the uncalibrated model
+            # If calibration fails, keep the uncalibrated model
             logger.warning(f"  ⚠️ {name}: calibration failed ({e}), using uncalibrated")
             calibrated_models[name] = model
 
@@ -222,10 +226,23 @@ def run_training_pipeline():
     logger.info("Optimizing classification thresholds...")
     thresholds = {}                                # Dictionary for optimal thresholds
     for name, model in calibrated_models.items():
-        # Optimize threshold based on expected profit
-        threshold = trainer.find_optimal_threshold(model, X_test_selected, y_test)
-        thresholds[name] = threshold
-        logger.info(f"  {name}: optimal threshold = {threshold:.3f}")
+        try:
+            # Obtain predicted probabilities for the positive class
+            if hasattr(model, "predict_proba"):
+                proba = model.predict_proba(X_test_selected)[:, 1]
+            elif hasattr(model, "decision_function"):
+                scores = model.decision_function(X_test_selected)
+                proba = 1 / (1 + np.exp(-scores))
+            else:
+                raise ValueError("Model has neither predict_proba nor decision_function")
+
+            # Optimize threshold based on expected profit (y_true, y_proba)
+            opt_thr, opt_profit = trainer.find_optimal_threshold(y_test, proba)
+            thresholds[name] = opt_thr
+            logger.info(f"  {name}: optimal threshold = {opt_thr:.3f}")
+        except Exception as e:
+            logger.warning(f"  ⚠️ {name}: threshold optimization failed ({e}), using 0.5")
+            thresholds[name] = 0.5
 
     # ----------------------------------------------------------
     # Step 7: Model Evaluation
